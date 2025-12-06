@@ -1,0 +1,26 @@
+name: Deploy a Prefect flow (installing dependencies from pyproject.toml)
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy_flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Run Prefect Deploy
+        uses: PrefectHQ/actions-prefect-deploy@v4
+        with:
+          deployment-names: Simple
+          pyproject-toml-path: ./path/to/pyproject.toml
+        env:
+          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
+          PREFECT_API_URL: ${{ secrets.PREFECT_API_URL }}
+          # Optionally include credentials for a private pypi index called "my-index" defined in pyproject.toml
+          UV_INDEX_MY_INDEX_USERNAME: ${{ secrets.MY_INDEX_USERNAME }}
+          UV_INDEX_MY_INDEX_PASSWORD: ${{ secrets.MY_INDEX_PASSWORD }}

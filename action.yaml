@@ -1,4 +1,3 @@
----
 name: Deploy a Prefect flow
 author: PrefectHQ
 description: Deploy a flow from a project by creating a Prefect deployment.
@@ -7,58 +6,81 @@ branding:
   color: blue
 
 inputs:
-  additional-args:
+  deployment-names:
     description:
-      Any additinal arguments that need to be passed to
-      the prefect deployment run in a space separated format.
-      i.e - `--variable foo=bar -t 1.0.0 --cron "* * * * *"`.
+      Comma separated list of names of your
+      Prefect deployments.
+      example 'deployment1,deployment2'
     required: false
+    default: deployment
 
-  entrypoint:
+  requirements-file-paths:
     description:
-      The path to a flow entrypoint within a project,
-      in format `./path/to/file.py:flow_func_name`.
-    required: true
-
-  prefect-api-key:
-    description:
-      API Key to authenticate with Prefect.
-    required: true
-
-  prefect-workspace:
-    description:
-      Full handle of workspace, in format
-      `<account_handle>/<workspace_handle>`.
-    required: true
-
-  requirements-file-path:
-    description:
-      Path to requirements files to correctly install
+      Comma separated list of paths to
+      requirements files to correctly install
       dependencies for your Prefect flow(s).
+      example './flow1/requirements.txt,./flow2/requirements.txt'
     required: false
-    default: ./requirements.txt
+    default: ''
 
+  deployment-file-path:
+    description:
+      Relative path to your Prefect deployment file.
+      example './prefect-deployment-files/prefect.yaml'
+    required: false
+    default: './prefect.yaml'
+
+  pyproject-toml-path:
+    description:
+      Path to your pyproject.toml file for
+      dependency management of your Prefect flow(s).
+      example './pyproject.toml'
+    required: false
+    default: ''
+
+  all-deployments:
+    description:
+      If set to true, all deployments will be
+      deployed. This will override the
+      deployment-names input.
+    default: "false"
 
 runs:
   using: composite
   steps:
-    - id: install-prefect-locally
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Set up environment
+      run: uv venv
       shell: bash
-      run: pip install -q prefect
 
     - id: install-local-requirements
-      run: pip install -r ${{ inputs.requirements-file-path }}
+      if: ${{ inputs.requirements-file-paths != '' }}
+      run: |
+        IFS=',' read -ra requirements_paths <<< "${{ inputs.requirements-file-paths }}"
+        for req in ${requirements_paths[@]}; do
+          uv pip install -r $req
+        done
       shell: bash
 
-    - id: prefect-cloud-login
+    - id: install-from-pyproject-toml
+      if: ${{ inputs.pyproject-toml-path != '' }}
       run: |
-        prefect cloud login \
-        --key ${{ inputs.prefect-api-key }} \
-        --workspace ${{ inputs.prefect-workspace }}
+        cd $(dirname ${{ inputs.pyproject-toml-path }})
+        uv pip install .
       shell: bash
 
     - id: prefect-deploy
       run: |
-        prefect deploy ${{ inputs.entrypoint }} \
-         ${{ inputs.additional-args }}
+        uv pip install prefect -U "prefect>=3,<4"
+        if [ ${{ inputs.all-deployments }} == "true" ];
+        then
+          uv run prefect --no-prompt deploy --all --prefect-file "${{ inputs.deployment-file-path }}"
+        else
+          IFS=',' read -ra deployment_names <<< "${{ inputs.deployment-names }}"
+          for name in "${deployment_names[@]}"; do
+            uv run prefect --no-prompt deploy --prefect-file "${{ inputs.deployment-file-path }}" --name "$name"
+          done
+        fi
       shell: bash

@@ -1,9 +1,10 @@
-name: simple
+name: multi-deployment
 prefect-version: 3.0.0
 
 build: null
 
 push: null
+
 
 pull:
   - prefect.deployments.steps.git_clone:
@@ -12,9 +13,19 @@ pull:
       access_token: "{{ prefect.blocks.secret.simple-github-pat }}"
 
 deployments:
-  - name: Simple
-    description: A simple example
-    entrypoint: flow.py:call_api
+  - name: Simple_Deployment_1
+    description: Example deployment 1
+    entrypoint: ./deployment-1/flow.py:call_api
+    parameters: {}
+    schedule: {}
+    work_pool:
+      job_variables:
+        image: prefecthq/prefect:3-latest
+      name: simple-pool
+
+  - name: Simple_Deployment_2
+    description: Example deployment 2
+    entrypoint: ./deployment-2/flow.py:call_api
     parameters: {}
     schedule: {}
     work_pool:
